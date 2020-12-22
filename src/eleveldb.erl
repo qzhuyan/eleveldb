@@ -50,6 +50,8 @@
 -export_type([db_ref/0,
               itr_ref/0]).
 
+-include_lib("kernel/include/file.hrl").
+
 -on_load(init/0).
 
 -ifdef(TEST).
@@ -98,7 +100,18 @@ init() ->
                              filename:join("../priv", "eleveldb")
                      end;
                  Dir ->
-                     filename:join(Dir, "eleveldb")
+                     case file:read_file_info(Dir) of
+                         {ok, #file_info{type=directory}} ->
+                             filename:join(Dir, "eleveldb");
+                         {error, enotdir} -> %% maybe escript
+                             Escript = filename:dirname(filename:dirname(Dir)),
+                             case file:read_file_info(Escript) of
+                                 {ok, #file_info{type=regular}} ->
+                                     filename:join(filename:dirname(Escript), "eleveldb");
+                                 _ ->
+                                     error(nif_not_found)
+                             end
+                     end
              end,
     erlang:load_nif(SoName, application:get_all_env(eleveldb)).
 
